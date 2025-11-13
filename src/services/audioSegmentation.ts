@@ -70,7 +70,7 @@ export const audioSegmentationService = {
   segmentByTime(
     audioDuration: number,
     minDuration = 30,
-    maxDuration = 240
+    maxDuration = 90
   ): AudioSegment[] {
     const segments: AudioSegment[] = [];
     let currentTime = 0;
