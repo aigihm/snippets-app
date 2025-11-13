@@ -141,6 +141,8 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     }
   };
 
+  const [isDragging, setIsDragging] = useState(false);
+
   const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (audioRef.current) {
       const rect = e.currentTarget.getBoundingClientRect();
@@ -149,6 +151,18 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       audioRef.current.currentTime = percentage * audioRef.current.duration;
     }
   };
+
+  const handleProgressDrag = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (isDragging && audioRef.current) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+      const percentage = x / rect.width;
+      audioRef.current.currentTime = percentage * audioRef.current.duration;
+    }
+  };
+
+  const handleMouseDown = () => setIsDragging(true);
+  const handleMouseUp = () => setIsDragging(false);
 
   const formatTime = (seconds: number): string => {
     if (isNaN(seconds)) return '0:00';
@@ -170,8 +184,8 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       <audio ref={audioRef} preload="auto" />
 
       {/* Album Art / Thumbnail */}
-      <div className="mb-8">
-        <div className="w-72 h-72 bg-spotify-gray rounded-lg shadow-2xl flex items-center justify-center overflow-hidden">
+      <div className="mb-10">
+        <div className="w-80 h-80 bg-spotify-gray rounded-2xl shadow-2xl flex items-center justify-center overflow-hidden">
           {snippet.thumbnail_url ? (
             <img
               src={snippet.thumbnail_url}
@@ -179,7 +193,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
               className="w-full h-full object-cover"
             />
           ) : (
-            <div className="text-6xl text-spotify-light-gray">🎙️</div>
+            <div className="text-8xl text-spotify-light-gray">🎙️</div>
           )}
         </div>
       </div>
@@ -206,89 +220,105 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       </div>
 
       {/* Progress Bar */}
-      <div className="w-full max-w-md mb-6">
+      <div className="w-full max-w-lg mb-8">
         <div
-          className="w-full h-1 bg-spotify-gray rounded-full cursor-pointer mb-2"
+          className="relative w-full h-2 bg-spotify-gray rounded-full cursor-pointer mb-3 group"
           onClick={handleProgressClick}
+          onMouseDown={handleMouseDown}
+          onMouseUp={handleMouseUp}
+          onMouseMove={handleProgressDrag}
+          onMouseLeave={handleMouseUp}
         >
           <div
-            className="h-full bg-spotify-green rounded-full transition-all duration-100"
+            className="absolute top-0 left-0 h-full bg-spotify-green rounded-full transition-all duration-100"
             style={{ width: `${(currentTime / duration) * 100 || 0}%` }}
           />
+          {/* Draggable thumb */}
+          <div
+            className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
+            style={{ left: `calc(${(currentTime / duration) * 100 || 0}% - 8px)` }}
+          />
         </div>
-        <div className="flex justify-between text-xs text-spotify-light-gray">
+        <div className="flex justify-between text-sm font-medium text-spotify-light-gray">
           <span>{formatTime(currentTime)}</span>
           <span>{formatTime(duration)}</span>
         </div>
       </div>
 
       {/* Main Controls */}
-      <div className="flex items-center gap-6 mb-8">
+      <div className="flex items-center gap-8 mb-10">
+        {/* Rewind to Start */}
         <button
           onClick={handleRewindToStart}
-          className="text-spotify-light-gray hover:text-white transition-colors"
+          className="text-spotify-light-gray hover:text-white transition-colors flex flex-col items-center group"
           aria-label="Rewind to start"
         >
-          <SkipBack size={32} />
+          <SkipBack size={40} className="mb-1" />
         </button>
 
+        {/* Rewind 10s */}
         <button
           onClick={handleRewind10}
-          className="text-spotify-light-gray hover:text-white transition-colors"
+          className="text-spotify-light-gray hover:text-white transition-colors flex flex-col items-center group"
           aria-label="Rewind 10 seconds"
         >
-          <Rewind size={28} />
+          <Rewind size={36} className="mb-1" />
+          <span className="text-xs font-semibold opacity-75 group-hover:opacity-100">10s</span>
         </button>
 
+        {/* Play/Pause */}
         <button
           onClick={togglePlayPause}
-          className="w-16 h-16 bg-white rounded-full flex items-center justify-center hover:scale-105 transition-transform shadow-lg"
+          className="w-20 h-20 bg-white rounded-full flex items-center justify-center hover:scale-110 transition-transform shadow-2xl"
           aria-label={isPlaying ? 'Pause' : 'Play'}
         >
           {isPlaying ? (
-            <Pause size={32} className="text-black" fill="black" />
+            <Pause size={40} className="text-black" fill="black" />
           ) : (
-            <Play size={32} className="text-black ml-1" fill="black" />
+            <Play size={40} className="text-black ml-1" fill="black" />
           )}
         </button>
 
+        {/* Forward 10s */}
         <button
           onClick={handleForward10}
-          className="text-spotify-light-gray hover:text-white transition-colors"
+          className="text-spotify-light-gray hover:text-white transition-colors flex flex-col items-center group"
           aria-label="Forward 10 seconds"
         >
-          <FastForward size={28} />
+          <FastForward size={36} className="mb-1" />
+          <span className="text-xs font-semibold opacity-75 group-hover:opacity-100">10s</span>
         </button>
 
+        {/* Skip to Next */}
         <button
           onClick={handleSkip}
-          className="text-spotify-light-gray hover:text-white transition-colors"
+          className="text-spotify-light-gray hover:text-white transition-colors flex flex-col items-center group"
           aria-label="Skip to next"
         >
-          <SkipForward size={32} />
+          <SkipForward size={40} className="mb-1" />
         </button>
       </div>
 
       {/* Action Buttons */}
-      <div className="flex gap-4">
+      <div className="flex gap-6">
         <button
           onClick={handleLike}
-          className={`p-3 rounded-full transition-all ${
+          className={`p-4 rounded-full transition-all hover:scale-110 ${
             isLiked
-              ? 'bg-spotify-green text-white'
-              : 'bg-spotify-gray text-spotify-light-gray hover:text-white'
+              ? 'bg-spotify-green text-white shadow-lg'
+              : 'bg-spotify-gray text-spotify-light-gray hover:text-white hover:bg-opacity-80'
           }`}
           aria-label="Like snippet"
         >
-          <ThumbsUp size={24} fill={isLiked ? 'white' : 'none'} />
+          <ThumbsUp size={28} fill={isLiked ? 'white' : 'none'} />
         </button>
 
         <button
           onClick={handleSave}
-          className="p-3 bg-spotify-gray text-spotify-light-gray hover:text-white rounded-full transition-colors"
+          className="p-4 bg-spotify-gray text-spotify-light-gray hover:text-white rounded-full transition-all hover:scale-110 hover:bg-opacity-80"
           aria-label="Save to playlist"
         >
-          <Plus size={24} />
+          <Plus size={28} />
         </button>
       </div>
     </div>
