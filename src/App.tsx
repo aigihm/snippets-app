@@ -166,6 +166,7 @@ function App() {
       <AudioPlayer
         snippet={currentSnippet}
         onSkip={handleSkip}
+        onPrevious={handlePrevious}
         onLike={handleLike}
         onSave={handleSave}
         onInteraction={handleInteraction}

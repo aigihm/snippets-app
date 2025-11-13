@@ -1,11 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Play,
-  Pause,
   SkipForward,
   SkipBack,
-  Rewind,
-  FastForward,
   ThumbsUp,
   Plus,
 } from 'lucide-react';
@@ -14,6 +10,7 @@ import type { Snippet } from '../types';
 interface AudioPlayerProps {
   snippet: Snippet | null;
   onSkip: () => void;
+  onPrevious: () => void;
   onLike: (snippetId: string) => void;
   onSave: (snippetId: string) => void;
   onInteraction: (
@@ -26,6 +23,7 @@ interface AudioPlayerProps {
 export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   snippet,
   onSkip,
+  onPrevious,
   onLike,
   onSave,
   onInteraction,
@@ -39,22 +37,62 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
 
   useEffect(() => {
     if (snippet && audioRef.current) {
-      audioRef.current.src = snippet.audio_url;
-      audioRef.current.load();
-      setIsPlaying(true);
+      const audio = audioRef.current;
+
+      // Set source with fragment identifier for start time only
+      audio.src = `${snippet.audio_url}#t=${snippet.start_time}`;
+
+      // Preload and prepare
+      audio.load();
+
+      // When metadata is loaded, seek to start time and play
+      const handleCanPlay = () => {
+        if (audio.currentTime < snippet.start_time) {
+          audio.currentTime = snippet.start_time;
+        }
+        // Start playing immediately
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+          playPromise.catch((error) => {
+            console.log('Autoplay prevented:', error);
+            setIsPlaying(false);
+          });
+        }
+      };
+
+      audio.addEventListener('canplay', handleCanPlay, { once: true });
+
       setIsLiked(false);
+      setCurrentTime(0);
+      setDuration(snippet.end_time - snippet.start_time);
       startTimeRef.current = Date.now();
+
+      return () => {
+        audio.removeEventListener('canplay', handleCanPlay);
+      };
     }
   }, [snippet]);
 
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio || !snippet) return;
 
     const handlePlay = () => setIsPlaying(true);
     const handlePause = () => setIsPlaying(false);
-    const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
-    const handleLoadedMetadata = () => setDuration(audio.duration);
+    const handleTimeUpdate = () => {
+      // Check if we've reached the end time for this snippet
+      if (audio.currentTime >= snippet.end_time) {
+        const listenDuration = Math.floor((Date.now() - startTimeRef.current) / 1000);
+        onInteraction(snippet.id, 'complete', listenDuration);
+        onSkip(); // Auto-play next snippet
+      } else {
+        // Set relative time (time since snippet start)
+        setCurrentTime(Math.max(0, audio.currentTime - snippet.start_time));
+      }
+    };
+    const handleLoadedMetadata = () => {
+      setDuration(snippet.end_time - snippet.start_time);
+    };
     const handleEnded = () => {
       if (snippet) {
         const listenDuration = Math.floor((Date.now() - startTimeRef.current) / 1000);
@@ -103,25 +141,13 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     onSkip();
   };
 
-  const handleRewindToStart = () => {
-    if (audioRef.current) {
-      audioRef.current.currentTime = 0;
+  const handlePrevious = () => {
+    if (snippet) {
+      const listenDuration = Math.floor((Date.now() - startTimeRef.current) / 1000);
+      onInteraction(snippet.id, 'skip', listenDuration);
     }
-  };
-
-  const handleRewind10 = () => {
-    if (audioRef.current) {
-      audioRef.current.currentTime = Math.max(0, audioRef.current.currentTime - 10);
-    }
-  };
-
-  const handleForward10 = () => {
-    if (audioRef.current) {
-      audioRef.current.currentTime = Math.min(
-        audioRef.current.duration,
-        audioRef.current.currentTime + 10
-      );
-    }
+    setIsPlaying(false);
+    onPrevious();
   };
 
   const handleLike = () => {
@@ -144,20 +170,24 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   const [isDragging, setIsDragging] = useState(false);
 
   const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (audioRef.current) {
+    if (audioRef.current && snippet) {
       const rect = e.currentTarget.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const percentage = x / rect.width;
-      audioRef.current.currentTime = percentage * audioRef.current.duration;
+      const snippetDuration = snippet.end_time - snippet.start_time;
+      const newTime = snippet.start_time + (percentage * snippetDuration);
+      audioRef.current.currentTime = newTime;
     }
   };
 
   const handleProgressDrag = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (isDragging && audioRef.current) {
+    if (isDragging && audioRef.current && snippet) {
       const rect = e.currentTarget.getBoundingClientRect();
       const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
       const percentage = x / rect.width;
-      audioRef.current.currentTime = percentage * audioRef.current.duration;
+      const snippetDuration = snippet.end_time - snippet.start_time;
+      const newTime = snippet.start_time + (percentage * snippetDuration);
+      audioRef.current.currentTime = newTime;
     }
   };
 
@@ -180,146 +210,167 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-spotify-gray to-spotify-black p-6">
+    <div className="flex flex-col h-screen overflow-hidden" style={{ backgroundColor: '#FFFFFF', colorScheme: 'light' }}>
       <audio ref={audioRef} preload="auto" />
 
-      {/* Album Art / Thumbnail */}
-      <div className="mb-10">
-        <div className="w-80 h-80 bg-spotify-gray rounded-2xl shadow-2xl flex items-center justify-center overflow-hidden">
-          {snippet.thumbnail_url ? (
-            <img
-              src={snippet.thumbnail_url}
-              alt={snippet.podcast_title}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="text-8xl text-spotify-light-gray">🎙️</div>
-          )}
-        </div>
-      </div>
-
-      {/* Track Info */}
-      <div className="text-center mb-8 max-w-md">
-        <h2 className="text-2xl font-bold text-white mb-2">{snippet.podcast_title}</h2>
-        <p className="text-spotify-light-gray text-sm mb-1">{snippet.podcast_author}</p>
-        <p className="text-spotify-light-gray text-xs line-clamp-2">
-          {snippet.description}
-        </p>
-        {snippet.topics.length > 0 && (
-          <div className="flex flex-wrap gap-2 mt-3 justify-center">
-            {snippet.topics.slice(0, 3).map((topic, idx) => (
-              <span
-                key={idx}
-                className="px-2 py-1 bg-spotify-gray rounded-full text-xs text-spotify-light-gray"
-              >
-                {topic}
-              </span>
-            ))}
+      {/* Fixed Content - Condensed Layout */}
+      <div className="flex flex-col h-full overflow-y-auto" style={{ backgroundColor: '#FFFFFF' }}>
+        <div className="max-w-md mx-auto px-4 py-3 w-full" style={{ backgroundColor: '#FFFFFF' }}>
+          {/* Artwork - Square with shadow */}
+          <div className="mb-2">
+            <div className="w-full aspect-square rounded-xl overflow-hidden shadow-2xl bg-gray-200">
+              {snippet.thumbnail_url ? (
+                <img
+                  src={snippet.thumbnail_url}
+                  alt={snippet.podcast_title}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-8xl">🎙️</div>
+              )}
+            </div>
           </div>
-        )}
-      </div>
 
-      {/* Progress Bar */}
-      <div className="w-full max-w-lg mb-8">
-        <div
-          className="relative w-full h-2 bg-spotify-gray rounded-full cursor-pointer mb-3 group"
-          onClick={handleProgressClick}
-          onMouseDown={handleMouseDown}
-          onMouseUp={handleMouseUp}
-          onMouseMove={handleProgressDrag}
-          onMouseLeave={handleMouseUp}
-        >
-          <div
-            className="absolute top-0 left-0 h-full bg-spotify-green rounded-full transition-all duration-100"
-            style={{ width: `${(currentTime / duration) * 100 || 0}%` }}
-          />
-          {/* Draggable thumb */}
-          <div
-            className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
-            style={{ left: `calc(${(currentTime / duration) * 100 || 0}% - 8px)` }}
-          />
+          {/* Episode Title and Show Info */}
+          <div className="mb-2">
+            <h1 className="text-base font-semibold mb-0.5 line-clamp-2" style={{ color: '#111827' }}>
+              {snippet.episode_title}
+            </h1>
+            <p className="text-xs font-medium mb-0.5" style={{ color: '#DC2626' }}>{snippet.podcast_title}</p>
+            <p className="text-xs" style={{ color: '#6B7280' }}>{snippet.podcast_author}</p>
+          </div>
+
+          {/* Progress Slider */}
+          <div className="mb-0.5">
+            <div
+              className="relative w-full rounded-full cursor-pointer"
+              style={{ height: '8px', backgroundColor: '#D1D5DB' }}
+              onClick={handleProgressClick}
+              onMouseDown={handleMouseDown}
+              onMouseUp={handleMouseUp}
+              onMouseMove={handleProgressDrag}
+              onMouseLeave={handleMouseUp}
+            >
+              <div
+                className="absolute top-0 left-0 rounded-full"
+                style={{
+                  width: `${(currentTime / duration) * 100 || 0}%`,
+                  height: '8px',
+                  backgroundColor: '#DC2626'
+                }}
+              />
+              {/* Playhead */}
+              <div
+                className="absolute rounded-full shadow-lg"
+                style={{
+                  left: `calc(${(currentTime / duration) * 100 || 0}% - 10px)`,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  width: '20px',
+                  height: '20px',
+                  backgroundColor: '#FFFFFF',
+                  border: '2px solid #DC2626'
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Time Labels */}
+          <div className="flex justify-between mb-2">
+            <span className="text-xs font-normal" style={{ color: '#6B7280' }}>{formatTime(currentTime)}</span>
+            <span className="text-xs font-normal" style={{ color: '#6B7280' }}>{formatTime(duration)}</span>
+          </div>
+
+          {/* Main Controls Row */}
+          <div className="flex items-center justify-center gap-8 mb-3">
+            {/* Previous Button */}
+            <button
+              onClick={handlePrevious}
+              className="active:scale-90 transition-transform"
+              aria-label="Previous snippet"
+              style={{ color: '#4B5563' }}
+            >
+              <SkipBack size={40} strokeWidth={1.5} />
+            </button>
+
+            {/* Play/Pause Button */}
+            <button
+              onClick={togglePlayPause}
+              className="w-20 h-20 flex-shrink-0 active:scale-95 transition-transform"
+              aria-label={isPlaying ? 'Pause' : 'Play'}
+            >
+              {isPlaying ? (
+                <svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="40" cy="40" r="39" fill="#1C1C1E" stroke="#1C1C1E" strokeWidth="2" />
+                  <rect x="28" y="26" width="6" height="28" rx="1.5" fill="#FFFFFF" />
+                  <rect x="46" y="26" width="6" height="28" rx="1.5" fill="#FFFFFF" />
+                </svg>
+              ) : (
+                <svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="40" cy="40" r="39" fill="#1C1C1E" stroke="#1C1C1E" strokeWidth="2" />
+                  <path d="M32 26l26 14-26 14V26z" fill="#FFFFFF" />
+                </svg>
+              )}
+            </button>
+
+            {/* Next Button */}
+            <button
+              onClick={handleSkip}
+              className="active:scale-90 transition-transform"
+              aria-label="Next snippet"
+              style={{ color: '#4B5563' }}
+            >
+              <SkipForward size={40} strokeWidth={1.5} />
+            </button>
+          </div>
+
+          {/* Bottom Action Row */}
+          <div className="flex items-center justify-center gap-16 mb-2">
+            {/* Like Button */}
+            <button
+              onClick={handleLike}
+              className="active:scale-90 transition-transform"
+              aria-label="Like"
+              style={{ color: isLiked ? '#DC2626' : '#9CA3AF' }}
+            >
+              <ThumbsUp
+                size={28}
+                fill={isLiked ? 'currentColor' : 'none'}
+                strokeWidth={1.5}
+              />
+            </button>
+
+            {/* Add to Library */}
+            <button
+              onClick={handleSave}
+              className="active:scale-90 transition-transform"
+              aria-label="Add to Library"
+              style={{ color: '#9CA3AF' }}
+            >
+              <Plus size={28} strokeWidth={1.5} />
+            </button>
+          </div>
+
+          {/* Description */}
+          <div className="mt-2 pb-3">
+            <p className="text-sm leading-relaxed" style={{ color: '#4B5563' }}>
+              {snippet.description}
+            </p>
+            {snippet.topics.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-3">
+                {snippet.topics.slice(0, 3).map((topic, idx) => (
+                  <span
+                    key={idx}
+                    className="px-2.5 py-1 rounded-full text-xs"
+                    style={{ backgroundColor: '#F3F4F6', color: '#4B5563' }}
+                  >
+                    {topic}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-        <div className="flex justify-between text-sm font-medium text-spotify-light-gray">
-          <span>{formatTime(currentTime)}</span>
-          <span>{formatTime(duration)}</span>
-        </div>
-      </div>
-
-      {/* Main Controls */}
-      <div className="flex items-center gap-8 mb-10">
-        {/* Rewind to Start */}
-        <button
-          onClick={handleRewindToStart}
-          className="text-spotify-light-gray hover:text-white transition-colors flex flex-col items-center group"
-          aria-label="Rewind to start"
-        >
-          <SkipBack size={40} className="mb-1" />
-        </button>
-
-        {/* Rewind 10s */}
-        <button
-          onClick={handleRewind10}
-          className="text-spotify-light-gray hover:text-white transition-colors flex flex-col items-center group"
-          aria-label="Rewind 10 seconds"
-        >
-          <Rewind size={36} className="mb-1" />
-          <span className="text-xs font-semibold opacity-75 group-hover:opacity-100">10s</span>
-        </button>
-
-        {/* Play/Pause */}
-        <button
-          onClick={togglePlayPause}
-          className="w-20 h-20 bg-white rounded-full flex items-center justify-center hover:scale-110 transition-transform shadow-2xl"
-          aria-label={isPlaying ? 'Pause' : 'Play'}
-        >
-          {isPlaying ? (
-            <Pause size={40} className="text-black" fill="black" />
-          ) : (
-            <Play size={40} className="text-black ml-1" fill="black" />
-          )}
-        </button>
-
-        {/* Forward 10s */}
-        <button
-          onClick={handleForward10}
-          className="text-spotify-light-gray hover:text-white transition-colors flex flex-col items-center group"
-          aria-label="Forward 10 seconds"
-        >
-          <FastForward size={36} className="mb-1" />
-          <span className="text-xs font-semibold opacity-75 group-hover:opacity-100">10s</span>
-        </button>
-
-        {/* Skip to Next */}
-        <button
-          onClick={handleSkip}
-          className="text-spotify-light-gray hover:text-white transition-colors flex flex-col items-center group"
-          aria-label="Skip to next"
-        >
-          <SkipForward size={40} className="mb-1" />
-        </button>
-      </div>
-
-      {/* Action Buttons */}
-      <div className="flex gap-6">
-        <button
-          onClick={handleLike}
-          className={`p-4 rounded-full transition-all hover:scale-110 ${
-            isLiked
-              ? 'bg-spotify-green text-white shadow-lg'
-              : 'bg-spotify-gray text-spotify-light-gray hover:text-white hover:bg-opacity-80'
-          }`}
-          aria-label="Like snippet"
-        >
-          <ThumbsUp size={28} fill={isLiked ? 'white' : 'none'} />
-        </button>
-
-        <button
-          onClick={handleSave}
-          className="p-4 bg-spotify-gray text-spotify-light-gray hover:text-white rounded-full transition-all hover:scale-110 hover:bg-opacity-80"
-          aria-label="Save to playlist"
-        >
-          <Plus size={28} />
-        </button>
       </div>
     </div>
   );

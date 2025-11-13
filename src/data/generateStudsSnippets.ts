@@ -15,10 +15,10 @@ interface StudsInterview {
   description: string;
 }
 
-// Curated Studs Terkel interviews from Internet Archive
+// Curated Studs Terkel interviews from Internet Archive with working MP3 URLs
 const studsInterviews: StudsInterview[] = [
   {
-    identifier: 'studs-terkel-studs-terkel-radio-archive-180-interviewing-louisiana-photographer-',
+    identifier: 'studs-terkel-studs-terkel-radio-archive-180-interviewing-louisiana-photographer-/1960/studs%20terkel%20-%20studs%20terkel%20radio%20archive%20-%20105%20-%20maya%20angelou%20discusses%20her%20early%20life%20and%20african%20american%20culture%20and%20people.mp3',
     title: 'Maya Angelou on Early Life',
     guest: 'Maya Angelou',
     year: '1960',
@@ -26,7 +26,7 @@ const studsInterviews: StudsInterview[] = [
     description: 'Maya Angelou discusses her early life and African American culture',
   },
   {
-    identifier: 'studs-terkel-studs-terkel-radio-archive-180-interviewing-louisiana-photographer-',
+    identifier: 'studs-terkel-studs-terkel-radio-archive-180-interviewing-louisiana-photographer-/1960/studs%20terkel%20-%20studs%20terkel%20radio%20archive%20-%20106%20-%20bob%20newhart%20discusses%20his%20comedic%20craft.mp3',
     title: 'Bob Newhart on Comedy',
     guest: 'Bob Newhart',
     year: '1960',
@@ -34,7 +34,7 @@ const studsInterviews: StudsInterview[] = [
     description: 'Bob Newhart discusses his comedic craft and career',
   },
   {
-    identifier: 'studs-terkel-studs-terkel-radio-archive-180-interviewing-louisiana-photographer-',
+    identifier: 'studs-terkel-studs-terkel-radio-archive-180-interviewing-louisiana-photographer-/1960/studs%20terkel%20-%20studs%20terkel%20radio%20archive%20-%20109%20-%20r.%20buckminster%20(richard%20buckminster)%20fuller%20in%20conversation%20with%20studs%20terkel.mp3',
     title: 'R. Buckminster Fuller Interview',
     guest: 'R. Buckminster Fuller',
     year: '1960',
@@ -42,7 +42,15 @@ const studsInterviews: StudsInterview[] = [
     description: 'Buckminster Fuller in conversation about design and innovation',
   },
   {
-    identifier: '11861',
+    identifier: 'studs-terkel-studs-terkel-radio-archive-180-interviewing-louisiana-photographer-/1960/studs%20terkel%20-%20studs%20terkel%20radio%20archive%20-%20107%20-%20lotte%20lehmann%20talks%20with%20studs%20terkel.mp3',
+    title: 'Lotte Lehmann on Opera',
+    guest: 'Lotte Lehmann',
+    year: '1960',
+    topic: ['Opera', 'Music', 'Performance'],
+    description: 'Opera legend Lotte Lehmann talks about her career and opera',
+  },
+  {
+    identifier: '11861/11861.mp3',
     title: 'Sidney Poitier on Acting',
     guest: 'Sidney Poitier',
     year: '1959',
@@ -50,7 +58,7 @@ const studsInterviews: StudsInterview[] = [
     description: 'Sidney Poitier discusses movies and his groundbreaking career',
   },
   {
-    identifier: 'hyperaudio-studs-keaton',
+    identifier: 'hyperaudio-studs-keaton/Studs_Terkel_interviews_Buster_Keaton_(1960).mp3',
     title: 'Buster Keaton Interview',
     guest: 'Buster Keaton',
     year: '1960',
@@ -58,35 +66,28 @@ const studsInterviews: StudsInterview[] = [
     description: 'Buster Keaton on silent films and comedy, 6 years before his death',
   },
   {
-    identifier: 'vietnamwar-martinsen-tuck',
+    identifier: 'vietnamwar-martinsen-tuck/Peter_Martinsen_and_David_Tuck_discuss_the_vietnam_war.mp3',
     title: 'Vietnam War Discussion',
     guest: 'Peter Martinsen & David Tuck',
     topic: ['Vietnam War', 'History', 'Politics'],
     description: 'Discussion about the Vietnam War and its impact',
   },
   {
-    identifier: 'bulgqlvxkao3eiit3d3kiyhb8dej1bu8eoffawwe',
-    title: 'Life, Faith, and Death',
-    guest: 'Studs Terkel',
-    topic: ['Philosophy', 'Faith', 'Mortality'],
-    description: 'Studs Terkel reflects on life, faith, and death with Krista Tippett',
-  },
-  {
-    identifier: 'pra-IZ1213',
+    identifier: 'pra-IZ1213/IZ1213_01_TERKEL.mp3',
     title: 'American Dreams',
     guest: 'Studs Terkel',
     topic: ['American Dream', 'Society', 'Culture'],
     description: 'Studs Terkel discusses his book "American Dreams"',
   },
   {
-    identifier: 'popuparchive-1852404',
+    identifier: 'popuparchive-1852404/1_John_Henry_Faulk.mp3',
     title: 'John Henry Faulk Interview',
     guest: 'John Henry Faulk',
     topic: ['Blacklist', 'Free Speech', 'History'],
     description: 'John Henry Faulk discusses the Hollywood blacklist',
   },
   {
-    identifier: '732121',
+    identifier: '732121/Studs_Terkel_100th_birthday.mp3',
     title: 'Studs Terkel 100th Birthday',
     guest: 'Various',
     topic: ['Celebration', 'Legacy', 'Radio'],
@@ -109,7 +110,10 @@ export function generateStudsSnippets(): Snippet[] {
   studsInterviews.forEach((interview) => {
     const baseUrl = `https://archive.org/download/${interview.identifier}`;
 
-    let currentTime = 0;
+    // Skip the intro - start at 3 minutes to avoid Studs' introduction
+    // The guest typically starts speaking after the intro music and setup
+    let currentTime = 180; // Start at 3:00 to skip intro
+
     for (let i = 0; i < snippetsPerInterview; i++) {
       // Vary snippet length naturally (30-90 seconds)
       const durations = [45, 62, 53, 78, 58, 69, 48, 82, 64, 55, 73, 60, 85, 51, 77, 66, 59, 70, 56, 88, 63, 75, 52, 80, 67];
