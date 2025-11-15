@@ -18,6 +18,9 @@ export class RecommendationEngine {
   // Exploration rate (percentage of random/exploratory recommendations)
   private readonly EXPLORATION_RATE = 0.1;
 
+  // TikTok-style cold start: show random content for first N interactions
+  private readonly COLD_START_THRESHOLD = 10;
+
   /**
    * Get personalized recommendations for a user
    */
@@ -38,6 +41,20 @@ export class RecommendationEngine {
       return this.shuffleArray(allSnippets).slice(0, count);
     }
 
+    // COLD START PHASE: TikTok-style random exploration for new users
+    // Show completely random content for first 5-10 interactions to learn preferences
+    if (userInteractions.length < this.COLD_START_THRESHOLD) {
+      return this.shuffleArray(unseenSnippets).slice(0, count);
+    }
+
+    // WARM START PHASE: Start using the algorithm with high exploration
+    // Gradually reduce randomness as we learn more about the user
+    let explorationRate = this.EXPLORATION_RATE;
+    if (userInteractions.length < this.COLD_START_THRESHOLD * 2) {
+      // Between 10-20 interactions: use 30% exploration instead of 10%
+      explorationRate = 0.3;
+    }
+
     // Calculate scores for all unseen snippets
     const scoredSnippets = unseenSnippets.map((snippet) => ({
       snippetId: snippet.id,
@@ -46,7 +63,8 @@ export class RecommendationEngine {
         userId,
         userInteractions,
         userPreferences,
-        allUserInteractions
+        allUserInteractions,
+        allSnippets
       ),
     }));
 
@@ -54,7 +72,7 @@ export class RecommendationEngine {
     scoredSnippets.sort((a, b) => b.score - a.score);
 
     // Apply exploration: replace some top recommendations with random ones
-    const explorationCount = Math.floor(count * this.EXPLORATION_RATE);
+    const explorationCount = Math.floor(count * explorationRate);
     const exploitationCount = count - explorationCount;
 
     const topRecommendations = scoredSnippets.slice(0, exploitationCount);
@@ -81,9 +99,10 @@ export class RecommendationEngine {
     userId: string,
     userInteractions: UserInteraction[],
     userPreferences: UserPreferences,
-    allInteractions: UserInteraction[]
+    allInteractions: UserInteraction[],
+    allSnippets: Snippet[]
   ): number {
-    const contentScore = this.calculateContentScore(snippet, userInteractions, userPreferences);
+    const contentScore = this.calculateContentScore(snippet, userInteractions, userPreferences, allSnippets);
     const collaborativeScore = this.calculateCollaborativeScore(snippet, userId, allInteractions);
     const freshnessScore = this.calculateFreshnessScore(snippet);
     const popularityScore = this.calculatePopularityScore(snippet, allInteractions);
@@ -102,7 +121,8 @@ export class RecommendationEngine {
   private calculateContentScore(
     snippet: Snippet,
     userInteractions: UserInteraction[],
-    userPreferences: UserPreferences
+    userPreferences: UserPreferences,
+    allSnippets?: Snippet[]
   ): number {
     let score = 0;
 
@@ -117,18 +137,18 @@ export class RecommendationEngine {
     score += topicMatches * 0.3 - topicPenalties * 0.5;
 
     // Analyze user's past interactions to infer preferences
-    const likedSnippets = userInteractions.filter((i) => i.interaction_type === 'like');
+    const likedInteractions = userInteractions.filter((i) => i.interaction_type === 'like');
     // const completedSnippets = userInteractions.filter((i) => i.interaction_type === 'complete');
-    const skippedSnippets = userInteractions.filter((i) => i.interaction_type === 'skip');
+    const skippedInteractions = userInteractions.filter((i) => i.interaction_type === 'skip');
 
     // Sentiment matching (if user tends to like certain sentiments)
-    const userSentimentPreference = this.inferSentimentPreference(likedSnippets);
+    const userSentimentPreference = this.inferSentimentPreference(likedInteractions, allSnippets);
     if (snippet.sentiment === userSentimentPreference) {
       score += 0.2;
     }
 
     // Penalize if similar to skipped content
-    const skipPenalty = this.calculateSimilarityToSkipped(snippet, skippedSnippets);
+    const skipPenalty = this.calculateSimilarityToSkipped(snippet, skippedInteractions, allSnippets);
     score -= skipPenalty * 0.3;
 
     return Math.max(0, Math.min(1, score));
@@ -208,21 +228,114 @@ export class RecommendationEngine {
    * Helper: infer user's sentiment preference from liked content
    */
   private inferSentimentPreference(
-    _likedInteractions: UserInteraction[]
+    likedInteractions: UserInteraction[],
+    allSnippets?: Snippet[]
   ): 'positive' | 'negative' | 'neutral' {
-    // This would need access to snippet data - simplified for now
+    if (!allSnippets || likedInteractions.length === 0) {
+      return 'neutral';
+    }
+
+    // Get snippets that the user liked
+    const likedSnippetIds = new Set(likedInteractions.map((i) => i.snippet_id));
+    const likedSnippets = allSnippets.filter((s) => likedSnippetIds.has(s.id));
+
+    if (likedSnippets.length === 0) {
+      return 'neutral';
+    }
+
+    // Count sentiment occurrences
+    const sentimentCounts = {
+      positive: likedSnippets.filter((s) => s.sentiment === 'positive').length,
+      negative: likedSnippets.filter((s) => s.sentiment === 'negative').length,
+      neutral: likedSnippets.filter((s) => s.sentiment === 'neutral').length,
+    };
+
+    // Return the sentiment with highest count
+    if (sentimentCounts.positive > sentimentCounts.negative && sentimentCounts.positive > sentimentCounts.neutral) {
+      return 'positive';
+    } else if (sentimentCounts.negative > sentimentCounts.positive && sentimentCounts.negative > sentimentCounts.neutral) {
+      return 'negative';
+    }
     return 'neutral';
   }
 
   /**
    * Helper: calculate how similar a snippet is to skipped content
+   * Uses Jaccard similarity for topics and keywords
    */
   private calculateSimilarityToSkipped(
-    _snippet: Snippet,
-    _skippedInteractions: UserInteraction[]
+    snippet: Snippet,
+    skippedInteractions: UserInteraction[],
+    allSnippets?: Snippet[]
   ): number {
-    // Simplified: would compare topics, keywords, etc.
-    return 0;
+    if (!allSnippets || skippedInteractions.length === 0) {
+      return 0;
+    }
+
+    // Get snippets that were skipped
+    const skippedSnippetIds = new Set(skippedInteractions.map((i) => i.snippet_id));
+    const skippedSnippets = allSnippets.filter((s) => skippedSnippetIds.has(s.id));
+
+    if (skippedSnippets.length === 0) {
+      return 0;
+    }
+
+    // Calculate average similarity to all skipped content
+    let totalSimilarity = 0;
+
+    for (const skippedSnippet of skippedSnippets) {
+      // Topic similarity (Jaccard index)
+      const topicSimilarity = this.calculateJaccardSimilarity(
+        snippet.topics,
+        skippedSnippet.topics
+      );
+
+      // Keyword similarity (Jaccard index)
+      const keywordSimilarity = this.calculateJaccardSimilarity(
+        snippet.keywords,
+        skippedSnippet.keywords
+      );
+
+      // Sentiment match (binary)
+      const sentimentMatch = snippet.sentiment === skippedSnippet.sentiment ? 1 : 0;
+
+      // Weighted average: topics matter most, then keywords, then sentiment
+      const similarity = (
+        topicSimilarity * 0.5 +
+        keywordSimilarity * 0.3 +
+        sentimentMatch * 0.2
+      );
+
+      totalSimilarity += similarity;
+    }
+
+    // Return average similarity score (0-1)
+    return totalSimilarity / skippedSnippets.length;
+  }
+
+  /**
+   * Calculate Jaccard similarity between two arrays
+   * Jaccard = intersection / union
+   */
+  private calculateJaccardSimilarity(arr1: string[], arr2: string[]): number {
+    if (arr1.length === 0 && arr2.length === 0) {
+      return 0;
+    }
+
+    const set1 = new Set(arr1);
+    const set2 = new Set(arr2);
+
+    // Intersection
+    const intersection = [...set1].filter((x) => set2.has(x)).length;
+
+    // Union
+    const union = new Set([...set1, ...set2]).size;
+
+    if (union === 0) {
+      return 0;
+    }
+
+    return intersection / union;
   }
 
   /**
