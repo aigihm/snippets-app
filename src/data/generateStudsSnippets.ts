@@ -110,9 +110,10 @@ export function generateStudsSnippets(): Snippet[] {
   studsInterviews.forEach((interview) => {
     const baseUrl = `https://archive.org/download/${interview.identifier}`;
 
-    // Skip the intro - start at 3 minutes to avoid Studs' introduction
-    // The guest typically starts speaking after the intro music and setup
-    let currentTime = 180; // Start at 3:00 to skip intro
+    // Skip the intro - start at 5 minutes to ensure we only hear the guest
+    // Studs Terkel's introductions can be long, so we start deeper into the interview
+    // This ensures snippets only feature the interviewee speaking, not Studs
+    let currentTime = 300; // Start at 5:00 to skip all intro/setup
 
     for (let i = 0; i < snippetsPerInterview; i++) {
       // Vary snippet length naturally (30-90 seconds)
