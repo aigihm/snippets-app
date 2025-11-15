@@ -24,9 +24,13 @@ function App() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [demoMode, setDemoMode] = useState(DEMO_MODE);
+  const [shuffledDemoSnippets] = useState(() =>
+    // Shuffle demo snippets once on mount
+    [...sampleSnippets].sort(() => Math.random() - 0.5)
+  );
 
-  // Use sample snippets in demo mode, otherwise use recommended snippets
-  const activeSnippets = demoMode ? sampleSnippets : recommendedSnippets;
+  // Use shuffled demo snippets in demo mode, otherwise use recommended snippets
+  const activeSnippets = demoMode ? shuffledDemoSnippets : recommendedSnippets;
   const currentSnippet = activeSnippets[currentIndex] || null;
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
