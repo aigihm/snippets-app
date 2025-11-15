@@ -1,10 +1,36 @@
 import type { Snippet } from '../types';
 import { generateStudsSnippets } from './generateStudsSnippets';
 
-// Sample audio snippets for demo mode
-// Using Studs Terkel Radio Archive from Internet Archive - public domain content
-// 5000 snippets generated from legendary WFMT interviews (1952-1997)
-export const sampleSnippets: Snippet[] = generateStudsSnippets();
+// TikTok-style lazy loading: don't generate all 10K snippets upfront
+// Generate them on-demand as user scrolls through content
+let cachedSnippets: Snippet[] | null = null;
+let currentBatchIndex = 0;
+const BATCH_SIZE = 50; // Load 50 at a time, like TikTok
+
+export function getSnippetBatch(batchNumber: number = 0): Snippet[] {
+  // Initialize full array only once, but lazily
+  if (!cachedSnippets) {
+    cachedSnippets = generateStudsSnippets();
+  }
+
+  const startIndex = batchNumber * BATCH_SIZE;
+  const endIndex = startIndex + BATCH_SIZE;
+
+  return cachedSnippets.slice(startIndex, endIndex);
+}
+
+export function getInitialSnippets(): Snippet[] {
+  // TikTok approach: load first batch immediately for instant start
+  return getSnippetBatch(0);
+}
+
+export function getNextBatch(): Snippet[] {
+  currentBatchIndex++;
+  return getSnippetBatch(currentBatchIndex);
+}
+
+// Legacy export for backward compatibility
+export const sampleSnippets: Snippet[] = getInitialSnippets();
 
 // Note: All content is from Internet Archive
 // Studs Terkel Radio Archive: Real human stories and conversations

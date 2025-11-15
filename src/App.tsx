@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { AudioPlayer } from './components/AudioPlayer';
 import { Auth } from './components/Auth';
 import { useAuth } from './hooks/useAuth';
@@ -6,7 +6,7 @@ import { useSnippets } from './hooks/useSnippets';
 import { useUserInteractions } from './hooks/useUserInteractions';
 import { useRecommendations } from './hooks/useRecommendations';
 import { useMediaSession } from './hooks/useMediaSession';
-import { sampleSnippets } from './data/sampleSnippets';
+import { getInitialSnippets, getNextBatch } from './data/sampleSnippets';
 
 // Demo mode - enable to skip auth and use sample data
 const DEMO_MODE = !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_DEMO_MODE === 'true';
@@ -24,9 +24,12 @@ function App() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [demoMode, setDemoMode] = useState(DEMO_MODE);
-  const [shuffledDemoSnippets] = useState(() => {
-    // Fisher-Yates shuffle - more efficient than sort()
-    const shuffled = [...sampleSnippets];
+
+  // TikTok-style lazy loading: start with just first 50 snippets
+  const [demoSnippets, setDemoSnippets] = useState(() => {
+    const initial = getInitialSnippets();
+    // Shuffle only the initial batch for instant load
+    const shuffled = [...initial];
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
@@ -34,8 +37,17 @@ function App() {
     return shuffled;
   });
 
-  // Use shuffled demo snippets in demo mode, otherwise use recommended snippets
-  const activeSnippets = demoMode ? shuffledDemoSnippets : recommendedSnippets;
+  // Prefetch next batch when user gets close to the end
+  useEffect(() => {
+    if (demoMode && currentIndex >= demoSnippets.length - 10) {
+      // User is within 10 snippets of the end, load next batch
+      const nextBatch = getNextBatch();
+      setDemoSnippets(prev => [...prev, ...nextBatch]);
+    }
+  }, [currentIndex, demoMode, demoSnippets.length]);
+
+  // Use demo snippets in demo mode, otherwise use recommended snippets
+  const activeSnippets = demoMode ? demoSnippets : recommendedSnippets;
   const currentSnippet = activeSnippets[currentIndex] || null;
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
