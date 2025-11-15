@@ -24,10 +24,15 @@ function App() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [demoMode, setDemoMode] = useState(DEMO_MODE);
-  const [shuffledDemoSnippets] = useState(() =>
-    // Shuffle demo snippets once on mount
-    [...sampleSnippets].sort(() => Math.random() - 0.5)
-  );
+  const [shuffledDemoSnippets] = useState(() => {
+    // Fisher-Yates shuffle - more efficient than sort()
+    const shuffled = [...sampleSnippets];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  });
 
   // Use shuffled demo snippets in demo mode, otherwise use recommended snippets
   const activeSnippets = demoMode ? shuffledDemoSnippets : recommendedSnippets;

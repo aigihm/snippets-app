@@ -215,22 +215,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
 
       {/* Fixed Content - Condensed Layout */}
       <div className="flex flex-col h-full overflow-y-auto" style={{ backgroundColor: '#FFFFFF' }}>
-        <div className="max-w-md mx-auto px-4 py-3 w-full" style={{ backgroundColor: '#FFFFFF' }}>
-          {/* Artwork - Square with shadow */}
-          <div className="mb-2">
-            <div className="w-full aspect-square rounded-xl overflow-hidden shadow-2xl bg-gray-200">
-              {snippet.thumbnail_url ? (
-                <img
-                  src={snippet.thumbnail_url}
-                  alt={snippet.podcast_title}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-8xl">🎙️</div>
-              )}
-            </div>
-          </div>
-
+        <div className="max-w-md mx-auto px-4 py-8 w-full" style={{ backgroundColor: '#FFFFFF' }}>
           {/* Episode Title and Show Info */}
           <div className="mb-2">
             <h1 className="text-base font-semibold mb-0.5 line-clamp-2" style={{ color: '#111827' }}>

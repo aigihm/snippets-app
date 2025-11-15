@@ -96,7 +96,7 @@ const studsInterviews: StudsInterview[] = [
 ];
 
 /**
- * Generate 5000+ snippets from Studs Terkel interviews
+ * Generate 10000+ snippets from Studs Terkel interviews
  * Each interview is segmented into 30-90 second clips
  */
 export function generateStudsSnippets(): Snippet[] {
@@ -104,8 +104,8 @@ export function generateStudsSnippets(): Snippet[] {
   let snippetId = 1;
 
   // We have 10 base interviews
-  // To reach 5000 snippets: 10 interviews × 500 snippets each = 5000
-  const snippetsPerInterview = 500;
+  // To reach 10000 snippets: 10 interviews × 1000 snippets each = 10000
+  const snippetsPerInterview = 1000;
 
   studsInterviews.forEach((interview) => {
     const baseUrl = `https://archive.org/download/${interview.identifier}`;
